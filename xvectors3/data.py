@@ -62,7 +62,7 @@ class SortedSampler(torch.utils.data.Sampler):
 
 class WavDataset(torch.utils.data.Dataset):
     def __init__(self, datadir, extract_chunks=True, min_chunk_length=2.0, max_chunk_length=4.0,
-                 label_file="utt2lang", sample_rate=16000, label2id=None, normalize=True,
+                 label_file="utt2lang", sample_rate=16000, label2id=None,
                  num_fbanks=40, noise_dir="", rir_dir="", short_noise_dir="", no_augment=False,
                  speed_perturbation_probability=0.0, spec_augment=False, num_augmix_copies=0,
                  **kwargs):
@@ -70,7 +70,6 @@ class WavDataset(torch.utils.data.Dataset):
         self.min_length = min_chunk_length
         self.max_length = max_chunk_length
         self.sample_rate = sample_rate
-        self.normalize = normalize
         self.num_fbanks = num_fbanks
         self.utt2label = {}
         self.speed_perturbation_probability = speed_perturbation_probability

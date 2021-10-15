@@ -67,6 +67,7 @@ class SpeechClassificationModel(LightningModule):
             #for param in self.espnet2_model.parameters():
             #    param.requires_grad = False                
             self.encoder_output_dim = self.espnet2_model.encoder.output_size()
+            
         elif self.hparams.wav2vec2_model != "":
             from huggingface_wav2vec import HuggingFaceWav2Vec2
             self.wav2vec2 = HuggingFaceWav2Vec2(
@@ -266,7 +267,7 @@ class SpeechClassificationModel(LightningModule):
 
         params = list(self.named_parameters())
 
-        def is_backbone(n): return 'wav2vec2' in n
+        def is_backbone(n): return (('wav2vec2' in n) or ('espnet2' in n))
 
         grouped_parameters = [
             {"params": [p for n, p in params if is_backbone(n)], 'lr': self.hparams.learning_rate * 0.01},
