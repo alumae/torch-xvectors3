@@ -33,7 +33,7 @@ def main(args):
     if args.train_datadir is not None and args.dev_datadir is not None:
         train_dataset = WavDataset(args.train_datadir, extract_chunks=True, label_file=args.utt2class, 
                 **vars(args))
-        dev_dataset = WavDataset(args.dev_datadir, extract_chunks=True, label_file=args.utt2class,  
+        dev_dataset = WavDataset(args.dev_datadir, extract_chunks=False, label_file=args.utt2class,  
                 label2id=train_dataset.label2id,
                 **vars(args), no_augment=True)
 
