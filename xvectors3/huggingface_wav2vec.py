@@ -15,7 +15,7 @@ from torch import nn
 
 # We check if transformers is installed.
 try:
-    from transformers import Wav2Vec2Model, Wav2Vec2Config
+    from transformers import Wav2Vec2Model, Wav2Vec2Config, Wav2Vec2ConformerModel, Wav2Vec2ConformerConfig
     from transformers import Wav2Vec2FeatureExtractor
 except ImportError:
     print("Please install transformer from HuggingFace to use wav2vec2!")
@@ -74,6 +74,7 @@ class HuggingFaceWav2Vec2(nn.Module):
         freeze_feature_extractor=False,
         pretrain=True,
         apply_spec_augment=False,
+        is_conformer=False,
     ):
         super().__init__()
 
@@ -87,12 +88,22 @@ class HuggingFaceWav2Vec2(nn.Module):
         # if pretrain is False, we do not download the pretrained weights
         # it it is True, we download and load them.
         if not (pretrain):
-            config = Wav2Vec2Config.from_pretrained(source, cache_dir=save_path)
-            self.model = Wav2Vec2Model(config)
+            if not is_conformer:
+                config = Wav2Vec2Config.from_pretrained(source, cache_dir=save_path)
+                self.model = Wav2Vec2Model(config)
+            else:
+                config = Wav2Vec2ConformerConfig.from_pretrained(source, cache_dir=save_path)
+                self.model = Wav2Vec2ConformerModel(config)
         else:
-            self.model = Wav2Vec2Model.from_pretrained(
-                source, cache_dir=save_path
-            )
+            if not is_conformer:
+                self.model = Wav2Vec2Model.from_pretrained(
+                    source, cache_dir=save_path
+                )
+            else:
+                self.model = Wav2Vec2ConformerModel.from_pretrained(
+                    source, cache_dir=save_path
+                )
+
 
         # set apply_spec_augment
         self.model.config.apply_spec_augment = apply_spec_augment
@@ -146,3 +157,4 @@ class HuggingFaceWav2Vec2(nn.Module):
             out = F.layer_norm(out, out.shape)
 
         return out
+

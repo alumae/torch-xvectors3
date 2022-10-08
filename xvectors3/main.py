@@ -15,7 +15,7 @@ import torch.utils.data
 from models import SpeechClassificationModel
 from pytorch_lightning import Trainer, seed_everything
 from pytorch_lightning.callbacks import EarlyStopping
-from pytorch_lightning.callbacks import ModelCheckpoint
+from pytorch_lightning.callbacks import ModelCheckpoint, StochasticWeightAveraging
 
 from data import WavDataset, SortedSampler, DynamicBatchSampler
 
@@ -40,12 +40,21 @@ def main(args):
         batch_size = args.batch_size
         test_batch_size = args.test_batch_size
 
+        if args.use_balanced_sampler:
+            from torchsampler import ImbalancedDatasetSampler
+            train_sampler = ImbalancedDatasetSampler(dataset=train_dataset, labels=list(train_dataset.utt2label.values()))
+        else:
+            train_sampler = None
+
         train_loader = torch.utils.data.DataLoader(
                 dataset=train_dataset,
                 batch_size=batch_size,
-                shuffle=True,
+                shuffle=False if train_sampler else True,
                 collate_fn=train_dataset.collater,
-                num_workers=8)
+                num_workers=8,
+                sampler=train_sampler,
+                drop_last=True,
+                pin_memory=True)
         if test_batch_size == 1:
             sampler = None
         else:
@@ -59,7 +68,8 @@ def main(args):
                 num_workers=4)
 
         if (args.load_checkpoint):
-            model = SpeechClassificationModel.load_from_checkpoint(args.load_checkpoint, **vars(args))
+            breakpoint()
+            model = SpeechClassificationModel.load_from_checkpoint(args.load_checkpoint)
         else:
             model = SpeechClassificationModel(num_outputs=train_dataset.num_labels, **vars(args))
 
@@ -69,14 +79,24 @@ def main(args):
                 verbose=True,
                 monitor='val_loss',
                 mode='min'                
-        )        
-        trainer = Trainer.from_argparse_args(args, callbacks=[checkpoint_callback])    
-        trainer.fit(model, train_dataloader=train_loader, val_dataloaders=dev_loader)
+        )    
+
+        callbacks=[checkpoint_callback]
+
+        if args.swa_epoch_start < 1.0:
+            swa_callback = StochasticWeightAveraging(swa_epoch_start=args.swa_epoch_start)
+            callbacks.append(swa_callback)
+
+
+        trainer = Trainer.from_argparse_args(args, callbacks=callbacks)    
+        trainer.fit(model, train_dataloaders=train_loader, val_dataloaders=dev_loader)
     elif args.test_datadir is not None and args.load_checkpoint is not None:
         model = SpeechClassificationModel.load_from_checkpoint(args.load_checkpoint)
         print("Loaded model")
         model.dump_xvectors_dir = args.dump_xvectors_dir
         model.dump_predictions = args.dump_predictions
+        model.xvector_layer_index = args.xvector_layer_index
+
         test_dataset = WavDataset(args.test_datadir, extract_chunks=False, label_file=args.utt2class,  
                 label2id=None,
                 **vars(args), no_augment=True)
@@ -92,7 +112,7 @@ def main(args):
         model.eval()
         args.logger = False
         trainer = Trainer.from_argparse_args(args)
-        trainer.test(model, test_dataloaders=test_loader)        
+        trainer.test(model, dataloaders=test_loader)        
     else:
         raise Exception("Either --train-datadir and --dev-datadir or --test-datadir and --load-checkpoint should be specified")
 
@@ -127,6 +147,10 @@ if __name__ == '__main__':
     parser.add_argument('--load-checkpoint', required=False, type=str)        
     parser.add_argument('--test-datadir', required=False, type=str)        
     parser.add_argument('--utt2class', default="utt2lang", type=str)
+
+    parser.add_argument('--swa-epoch-start', default=1.0, type=float)
+
+    parser.add_argument('--use-balanced-sampler', default=False, action='store_true')
 
     args = parser.parse_args()
 

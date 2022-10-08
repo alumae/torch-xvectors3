@@ -14,6 +14,7 @@ from collections import OrderedDict
 from functools import lru_cache
 from tqdm import tqdm
 import torchaudio.transforms
+import torchaudio.functional
 
 import audiomentations
 
@@ -29,7 +30,8 @@ class DynamicBatchSampler():
         for idx in self.sampler:
             this_len = dataset[idx][seq_len_key]
             if current_len + this_len > max_total_len:
-                self.batches.append(batch)
+                if len(batch) > 0:
+                    self.batches.append(batch)
                 batch = [idx]
                 current_len = this_len
             else:
@@ -37,6 +39,7 @@ class DynamicBatchSampler():
                 batch.append(idx)            
         if len(batch) > 0:
            self.batches.append(batch)        
+        
 
     def __iter__(self):
         return iter(self.batches)
@@ -119,7 +122,7 @@ class WavDataset(torch.utils.data.Dataset):
             augmentations.append(audiomentations.AddGaussianNoise(min_amplitude=0.001, max_amplitude=0.015, p=0.3))
             if short_noise_dir != "":
                 augmentations.append(audiomentations.AddShortNoises(sounds_path=short_noise_dir, p=0.5, lru_cache_size=1024))
-            augmentations.append(audiomentations.Resample(min_sample_rate=sample_rate * 0.8, max_sample_rate=sample_rate * 1.2, p=speed_perturbation_probability))
+            augmentations.append(audiomentations.Resample(min_sample_rate=sample_rate * 0.9, max_sample_rate=sample_rate * 1.1, p=speed_perturbation_probability))
 
             self.augment = audiomentations.Compose(augmentations)
 
@@ -127,7 +130,7 @@ class WavDataset(torch.utils.data.Dataset):
     def get_wav_audio(self, wav):
         wav_tensor, utt_sample_rate = torchaudio.load(wav)
         if utt_sample_rate != self.sample_rate:
-            wav_tensor = torchaudio.compliance.kaldi.resample_waveform(wav_tensor, utt_sample_rate, self.sample_rate) 
+            wav_tensor = torchaudio.functional.resample(wav_tensor, utt_sample_rate, self.sample_rate) 
         if wav_tensor.shape[0] != 1:
             wav_tensor = wav_tensor.mean(dim=0, keepdim=True)
         wav_tensor = wav_tensor[0]

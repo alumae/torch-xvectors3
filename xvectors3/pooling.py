@@ -6,7 +6,7 @@ import numpy as np
 
 import torch
 import torch.nn.functional as F
-
+import torch.nn as nn
 
 from utils import *
 
@@ -299,6 +299,31 @@ class AttentiveStatisticsPooling(torch.nn.Module):
 
     def get_output_dim(self):
         return self.output_dim
+
+
+''' Attentive weighted mean and standard deviation pooling.
+'''
+class EcapaAttentiveStatisticsPooling(nn.Module):
+    def __init__(self, input_dim, bottleneck_dim=128):
+        super().__init__()
+        # Use Conv1d with stride == 1 rather than Linear, then we don't need to transpose inputs.
+        self.linear1 = nn.Conv1d(input_dim, bottleneck_dim, kernel_size=1) # equals W and b in the paper
+        self.linear2 = nn.Conv1d(bottleneck_dim, input_dim, kernel_size=1) # equals V and k in the paper
+        self.output_dim = input_dim * 2
+        self.bn_stats = nn.BatchNorm1d(input_dim * 2)
+
+    def forward(self, x):
+        # DON'T use ReLU here! In experiments, I find ReLU hard to converge.
+        alpha = torch.tanh(self.linear1(x))
+        alpha = torch.softmax(self.linear2(alpha), dim=2)
+        mean = torch.sum(alpha * x, dim=2)
+        residuals = torch.sum(alpha * x ** 2, dim=2) - mean ** 2
+        std = torch.sqrt(residuals.clamp(min=1e-9))
+        return self.bn_stats(torch.cat([mean, std], dim=1)).unsqueeze(2)
+
+    def get_output_dim(self):
+        return self.output_dim
+
 
 
 class MultiHeadAttentionPooling(torch.nn.Module):
